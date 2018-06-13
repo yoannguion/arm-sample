@@ -1,0 +1,280 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "_artifactsLocation": {
+            "type": "string",
+            "metadata": {
+                "description": "The base URI where artifacts required by this template are located. When the template is deployed using the accompanying scripts, a private location in the subscription will be used and this value will be automatically generated."
+            },
+            "defaultValue": "https://raw.githubusercontent.com/yoannguion/arm-sample/master/"
+        },
+        "_artifactsLocationSasToken": {
+            "type": "securestring",
+            "metadata": {
+                "description": "The sasToken required to access _artifactsLocation.  When the template is deployed using the accompanying scripts, a sasToken will be automatically generated."
+            },
+            "defaultValue": ""
+        },
+        "clearDomain": {
+            "defaultValue": "clear-domain.com",
+            "metadata": {
+                "description": "Clear mail domain"
+            },
+            "type": "string"
+        },
+        "mssDomain": {
+            "defaultValue": "ets.mssante.fr",
+            "metadata": {
+                "description": "MSSanté mail domain"
+            },
+            "type": "string"
+        },
+        "sshPublicKey": {
+            "metadata": {
+                "description": "ssh public key"
+            },
+            "type": "string"
+        },
+        "sshUsername": {
+            "defaultValue": "azureadmin",
+            "metadata": {
+                "description": "ssh user name"
+            },
+            "type": "string"
+        },
+        "vmSku": {
+            "defaultValue": "Standard_DS1_v2",
+            "metadata": {
+                "description": "VM size"
+            },
+            "type": "string"
+        },
+        "customVnetId": {
+            "defaultValue": "",
+            "metadata": {
+                "description": "Azure Resource ID of the Azure virtual network where you want to deploy your resources. A vnet resource ID is of the following format: /subscriptions/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxxxxxx/resourceGroups/gggg/providers/Microsoft.Network/virtualNetworks/vvvv. Note that this virtual network must be on the same Azure location as this template deployment location. If this parameter is blank, a new Azure virtual network will be created and used. In that case, the address space of the newly created virtual network will be */16 of the following vNetAddressSpace parameter value below."
+            },
+            "type": "string"
+        },
+        "vNetAddressSpace": {
+            "defaultValue": "172.31.0.0",
+            "metadata": {
+                "description": "Address range for the virtual network and various subnets - presumed /16 for a newly created vnet in case customVnetId is blank. Further subneting (a number of */24 subnets starting from the xxx.yyy.zzz.0/24 will be created on a newly created vnet or your BYO-vnet (specified in customVnetId parameter)."
+            },
+            "type": "string"
+        },
+        "loadBalancerSku": {
+            "defaultValue": "Basic",
+            "allowedValues": [
+                "Basic",
+                "Standard"
+            ],
+            "metadata": {
+                "description": "Loadbalancer SKU"
+            },
+            "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "Azure Location for all resources."
+            }
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "networkTemplate",
+            "properties": {
+                "mode": "Incremental",
+                "parameters": {
+                    "moodleCommon": {
+                        "value": "[variables('common')]"
+                    }
+                },
+                "templateLink": {
+                    "uri": "[concat(variables('common').baseTemplateUrl,'network.json',parameters('_artifactsLocationSasToken'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "storageAccountTemplate",
+            "properties": {
+                "mode": "Incremental",
+                "parameters": {
+                    "moodleCommon": {
+                        "value": "[variables('common')]"
+                    }
+                },
+                "templateLink": {
+                    "uri": "[concat(variables('common').baseTemplateUrl,'storageAccount.json',parameters('_artifactsLocationSasToken'))]"
+                }
+            }
+        }
+        ,
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "dependsOn": [
+                "Microsoft.Resources/deployments/networkTemplate",
+                "Microsoft.Resources/deployments/storageAccountTemplate"
+            ],
+            "name": "vmSetupParamsTemplate",
+            "properties": {
+                "mode": "Incremental",
+                "parameters": {
+                    "moodleCommon": {
+                        "value": "[variables('common')]"
+                    }
+                },
+                "templateLink": {
+                    "uri": "[concat(variables('common').baseTemplateUrl,'vmsetupparams.json',parameters('_artifactsLocationSasToken'))]"
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "clearDomain": {
+            "type": "string",
+            "value": "[variables('common').clearDomain]"
+        },
+        "mssDomain": {
+            "type": "string",
+            "value": "[variables('common').mssDomain]"
+        },
+        "controllerInstanceIP": {
+            "type": "string",
+            "value": "[reference('controllerTemplate').outputs.controllerIP.value]"
+        },
+        "databaseDNS": {
+            "type": "string",
+            "value": "[reference('dbTemplate').outputs.dbFQDN.value]"
+        },
+        "databaseAdminUsername": {
+            "type": "string",
+            "value": "[variables('common').dbUsername]"
+        },
+        "databaseAdminPassword": {
+            "type": "string",
+            "value": "[variables('common').dbLoginPassword]"
+        },
+        "firstFrontendVmIP": {
+            "type": "string",
+            "value": "[reference('scaleSetTemplate').outputs.webvm1IP.value]"
+        },
+        "moodleAdminPassword": {
+            "type": "string",
+            "value": "[variables('common').moodleAdminPass]"
+        },
+        "moodleDbUsername": {
+            "type": "string",
+            "value": "[variables('common').moodleDbUserAzure]"
+        },
+        "moodleDbPassword": {
+            "type": "string",
+            "value": "[variables('common').moodleDbPass]"
+        },
+        "loadBalancerDNS": {
+            "type": "string",
+            "value": "[variables('common').lbDns]"
+        },
+        "loadBalancerSku": {
+            "type": "string",
+            "value": "[variables('common').lbSku]"
+        }
+    },
+    "variables": {
+        "documentation01": "This main-template calls multiple sub-templates to create the system",
+        "documentation02": "    vnet                - creates a virtual network with three subnets",
+        "common": {
+            "baseTemplateUrl": "[concat(parameters('_artifactsLocation'), 'nested/')]",
+            "scriptLocation": "[concat(parameters('_artifactsLocation'), 'scripts/')]",
+            "artifactsSasToken": "[parameters('_artifactsLocationSasToken')]",
+            "appGwBePoolName": "[concat('appgw-bepool-', variables('resourceprefix'))]",
+            "appGwName": "[concat('appgw-', variables('resourceprefix'))]",
+            "appGwPipName": "[concat('appgw-pubip-',variables('resourceprefix'))]",
+            "appGwSslCertKeyVaultResourceId": "[parameters('appGwSslCertKeyVaultResourceId')]",
+            "appGwSslCertKeyVaultSecretName": "[parameters('appGwSslCertKeyVaultSecretName')]",
+            "commonFunctionsScriptUri": "[concat(parameters('_artifactsLocation'),'scripts/helper_functions.sh',parameters('_artifactsLocationSasToken'))]",
+            "vmSku": "[parameters('vmSku')]",
+            "customVnetId": "[parameters('customVnetId')]",
+            "enableAccelNwForCtlrVmSwitch": "[parameters('enableAccelNwForCtlrVmSwitch')]",
+            "enableAccelNwForOtherVmsSwitch": "[parameters('enableAccelNwForOtherVmsSwitch')]",
+            "vNetAddressSpace": "[parameters('vNetAddressSpace')]",
+            "extBeName": "[concat('lb-backend-',variables('resourceprefix'))]",
+            "extFeName": "[concat('lb-frontend-',variables('resourceprefix'))]",
+            "extNatPool": "[concat('lb-natpool-',variables('resourceprefix'))]",
+            "extProbeHTTP": "[concat('lb-probe-http-',variables('resourceprefix'))]",
+            "extProbeHTTPS": "[concat('lb-probe-https-',variables('resourceprefix'))]",
+            "gatewayName": "[concat('vnet-gateway-',variables('resourceprefix'))]",
+            "gatewayPublicIPName": "[concat('vnet-gw-ip-',variables('resourceprefix'))]",
+            "gatewayType": "[parameters('gatewayType')]",
+            "ctlrNicName": "[concat('controller-vm-nic-',variables('resourceprefix'))]",
+            "ctlrNsgName": "[concat('controller-nsg-',variables('resourceprefix'))]",
+            "ctlrPipName": "[concat('controller-pubip-',variables('resourceprefix'))]",
+            "ctlrVmName": "[concat('controller-vm-',variables('resourceprefix'))]",
+            "subnetAppGw": "[concat('appgw-subnet-',variables('resourceprefix'))]",
+            "subnetAppGwPrefix": "[concat(variables('octets')[0], '.', variables('octets')[1], '.', string(add(int(variables('octets')[2]),6)))]",
+            "subnetAppGwRange": "[concat(variables('octets')[0], '.', variables('octets')[1], '.', string(add(int(variables('octets')[2]),6)), '.0/24')]",
+            "subnetGateway": "GatewaySubnet",
+            "subnetGatewayPrefix": "[concat(variables('octets')[0], '.', variables('octets')[1], '.', string(add(int(variables('octets')[2]),4)))]",
+            "subnetGatewayRange": "[concat(variables('octets')[0], '.', variables('octets')[1], '.', string(add(int(variables('octets')[2]),4)), '.0/24')]",
+            "subnetEsm": "[concat('esm-subnet-',variables('resourceprefix'))]",
+            "subnetEsmPrefix": "[concat( variables('octets')[0], '.', variables('octets')[1], '.', string(add(int(variables('octets')[2]),1)))]",
+            "subnetEsmRange": "[concat( variables('octets')[0], '.', variables('octets')[1], '.', string(add(int(variables('octets')[2]),1)), '.0/24')]",
+            "ctlrVmSecrets": "[take(variables('ctlrVmSecretsArray'), if(empty(parameters('keyVaultResourceId')), 0, 1))]",
+            "lbDns": "[concat('lb-',variables('resourceprefix'),'.',parameters('location'),'.cloudapp.azure.com')]",
+            "lbSku": "[parameters('loadBalancerSku')]",
+            "lbName": "[concat('lb-',variables('resourceprefix'))]",
+            "lbPipName": "[concat('lb-pubip-',variables('resourceprefix'))]",
+            "location": "[parameters('location')]",
+            "esmAdminPass": "[concat(toUpper('xl'), substring(uniqueString(resourceGroup().id, deployment().name), 6, 7),',1*8')]",
+            "osDiskStorageType": "[parameters('osDiskStorageType')]",
+            "osType": {
+                "offer": "CentOS",
+                "publisher": "OpenLogic",
+                "sku": "6.9",
+                "version": "latest"
+            },
+            "resourcesPrefix": "[variables('resourceprefix')]",
+            "serverName": "[concat(parameters('dbServerType'), '-',variables('resourceprefix'))]",
+            "sshPublicKey": "[parameters('sshPublicKey')]",
+            "sshUsername": "[parameters('sshUsername')]",
+            "storageAccountName": "[tolower(concat('abs',variables('resourceprefix')))]",
+            "storageAccountType": "[parameters('storageAccountType')]",
+            "thumbprintSslCert": "[if(or(empty(parameters('keyVaultResourceId')), empty(parameters('sslCertThumbprint'))), 'None', parameters('sslCertThumbprint'))]",
+            "thumbprintCaCert": "[if(or(empty(parameters('keyVaultResourceId')), empty(parameters('caCertThumbprint'))), 'None', parameters('caCertThumbprint'))]",
+            "esmNicName": "[concat('esm-vm-nic-',variables('resourceprefix'))]",
+            "tikaService": "[parameters('tikaService')]",
+            "tikaVmIP": "[if(equals(parameters('tikaService'), 'tika'), concat( variables('octets')[0], '.', variables('octets')[1], '.', string(add(int(variables('octets')[2]),5)), '.20'), 'none')]",
+            "esmVmName": "[concat('esl-vm-',variables('resourceprefix'))]",
+            "vmSku": "[parameters('vmSku')]",
+            "vaultName": "[concat('vault-',variables('resourceprefix'))]",
+            "vnetName": "[concat('vnet-',variables('resourceprefix'))]",
+            "esmScriptFilename": "install_esm.sh"
+        },
+        "certUrlArray": [
+            {
+                "certificateUrl": "[parameters('sslCertKeyVaultURL')]"
+            },
+            {
+                "certificateUrl": "[parameters('caCertKeyVaultURL')]"
+            }
+        ],
+        "ctlrVmSecretsArray": [
+            {
+                "sourceVault": {
+                    "id": "[parameters('keyVaultResourceId')]"
+                },
+                "vaultCertificates": "[take(variables('certUrlArray'), if(empty(parameters('caCertKeyVaultURL')), 1, 2))]"
+            }
+        ],
+        "octets": "[split(parameters('vNetAddressSpace'), '.')]",
+        "resourceprefix": "[substring(uniqueString(resourceGroup().id, deployment().name), 3, 6)]"
+    }
+}
