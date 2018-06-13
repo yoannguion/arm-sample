@@ -48,7 +48,7 @@
             "metadata": {
                 "description": "VM size"
             },
-            "type": "string"
+            "type": "Microsoft.Compute.SizeSelector"
         },
         "customVnetId": {
             "defaultValue": "",
