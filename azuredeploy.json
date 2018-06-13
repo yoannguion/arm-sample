@@ -17,7 +17,7 @@
             "defaultValue": ""
         },
         "clearDomain": {
-            "defaultValue": "clear-domain.com",
+            "defaultValue": "clear2-domain.com",
             "metadata": {
                 "description": "Clear mail domain"
             },
